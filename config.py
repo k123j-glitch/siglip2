@@ -33,8 +33,8 @@ class Config:
     num_workers   = 0
 
     # ── Paths ──────────────────────────────────────────────────────
-    data_csv         = "data/flickr30k_images/results.csv"
-    img_dir          = "data/flickr30k_images/flickr30k_images"
+    data_csv         = "data/flickr30k_images/captions.txt"
+    img_dir          = "data/flickr30k_images/images"
     checkpoint_best  = "siglip2_best.pt"
     checkpoint_final = "siglip2_final.pt"
 

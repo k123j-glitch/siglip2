@@ -3,7 +3,6 @@ import os
 import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -167,7 +166,7 @@ def log_predictions(
         ids = batch["input_ids"].to(cfg.device)
         am  = batch["attention_mask"].to(cfg.device)
 
-        with autocast():
+        with torch.amp.autocast('cuda'):
             out = model(pixel_values=pv, input_ids=ids,
                         attention_mask=am, return_loss=False)
 
@@ -226,7 +225,7 @@ def train():
         model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay
     )
     scheduler = cosine_schedule_with_warmup(optimizer, cfg.warmup_steps, total_steps)
-    scaler    = GradScaler()
+    scaler = torch.amp.GradScaler('cuda')
     tokenizer = BPETokenizer.load(TOKENIZER_PATH)
 
     # Fixed validation batch — same samples every epoch so you can
@@ -247,7 +246,7 @@ def train():
                 vpv  = vbatch["pixel_values"].to(cfg.device)
                 vids = vbatch["input_ids"].to(cfg.device)
                 vam  = vbatch["attention_mask"].to(cfg.device)
-                with autocast():
+                with torch.amp.autocast('cuda'):
                     vout = model(pixel_values=vpv, input_ids=vids,
                                  attention_mask=vam, return_loss=True)
                 v_loss += vout.loss.item()
@@ -283,7 +282,7 @@ def train():
             am  = batch["attention_mask"].to(cfg.device)
 
             optimizer.zero_grad()
-            with autocast():
+            with torch.amp.autocast('cuda'):
                 out  = model(pixel_values=pv, input_ids=ids,
                              attention_mask=am, return_loss=True)
                 loss = out.loss

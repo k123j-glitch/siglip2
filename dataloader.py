@@ -82,8 +82,10 @@ def _get_tokenizer(df, config) -> BPETokenizer:
 
 def get_dataloaders(config):
     # Load CSV
-    df = pd.read_csv(config.data_csv, sep="|")
+    df = pd.read_csv(config.data_csv, sep=",")
     df.columns = [c.strip() for c in df.columns]
+    rename_dict = {'image': 'image_name', 'caption': 'comment'}
+    df = df.rename(columns=rename_dict)
     df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
     df = df.dropna(subset=["image_name", "comment"]).reset_index(drop=True)
     print(f"Total samples: {len(df)}")
