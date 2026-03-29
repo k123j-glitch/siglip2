@@ -234,7 +234,7 @@ def train():
 
     best_val_loss = float("inf")
     global_step   = 0
-    VAL_FREQ      = 5000   # ← validate every this many steps
+    VAL_FREQ      = 500   # ← validate every this many steps
 
     def run_validation(step: int):
         """Full val-set pass + image panels logged at `step`. Saves best ckpt."""
