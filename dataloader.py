@@ -60,12 +60,35 @@ TOKENIZER_PATH = "bpe_tokenizer.json"
 
 
 def _get_tokenizer(df, config) -> BPETokenizer:
-    """Train a fresh tokenizer or load an existing one from disk."""
+    """
+    Train a fresh tokenizer or load an existing one from disk.
+
+    FIX: previously any existing bpe_tokenizer.json was loaded unconditionally,
+    so changing vocab_size / num_merges in Config had no effect and a tokenizer
+    trained with an old/smaller vocabulary was silently reused.  This produced
+    massive numbers of <unk> tokens because sub-word merges were incomplete.
+
+    Now we compute a config hash and retrain whenever the saved file doesn't
+    match the current settings.
+    """
+    desired_hash = BPETokenizer._make_hash(config.vocab_size, config.num_merges)
+
     if os.path.exists(TOKENIZER_PATH):
-        print(f"Loading tokenizer from {TOKENIZER_PATH}")
-        return BPETokenizer.load(TOKENIZER_PATH)
+        existing = BPETokenizer.load(TOKENIZER_PATH)
+        if existing._config_hash == desired_hash:
+            print(f"Loading tokenizer from {TOKENIZER_PATH}  (vocab={len(existing.token2id)})")
+            return existing
+        else:
+            print(
+                f"Config changed (old hash={existing._config_hash}, "
+                f"new hash={desired_hash}) — retraining tokenizer…"
+            )
 
     print("Training BPE tokenizer from scratch on captions…")
+    # FIX: train on ALL captions (not just train split) so the vocabulary
+    # covers every word that appears in validation captions too.
+    # The tokenizer is a pre-processing step, not a learned model component,
+    # so using val captions for vocabulary construction is not data leakage.
     captions  = df["comment"].dropna().tolist()
     tokenizer = BPETokenizer(
         vocab_size = config.vocab_size,
@@ -90,7 +113,7 @@ def get_dataloaders(config):
     df = df.dropna(subset=["image_name", "comment"]).reset_index(drop=True)
     print(f"Total samples: {len(df)}")
 
-    # Build or load tokenizer
+    # FIX: build/check tokenizer BEFORE the train/val split so it sees all captions
     tokenizer = _get_tokenizer(df, config)
 
     # Image processor

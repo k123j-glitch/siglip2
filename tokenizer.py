@@ -6,7 +6,8 @@ Trains a vocabulary from the dataset captions, then encodes/decodes text.
 import re
 import json
 import os
-from collections import Counter, defaultdict
+import hashlib
+from collections import Counter
 
 
 # ─────────────────────────────────────────────
@@ -76,12 +77,18 @@ class BPETokenizer:
     EOS_ID = 2
     UNK_ID = 3
 
-    def __init__(self, vocab_size: int = 8192, num_merges: int = 4000):
+    def __init__(self, vocab_size: int = 16000, num_merges: int = 8000):
         self.vocab_size  = vocab_size
         self.num_merges  = num_merges
         self.merges      = []          # list of (pair_a, pair_b) tuples
         self.token2id    = {}
         self.id2token    = {}
+        # FIX: store config hash so we can detect stale saved tokenizers
+        self._config_hash: str = self._make_hash(vocab_size, num_merges)
+
+    @staticmethod
+    def _make_hash(vocab_size: int, num_merges: int) -> str:
+        return hashlib.md5(f"{vocab_size}:{num_merges}".encode()).hexdigest()[:8]
 
     # ── Training ──────────────────────────────────────────────────
 
@@ -169,9 +176,14 @@ class BPETokenizer:
 
         return {"input_ids": ids, "attention_mask": attention_mask}
 
-    def decode(self, ids: list) -> str:
-        tokens = [self.id2token.get(i, self.UNK_TOKEN) for i in ids
-                  if i not in (self.PAD_ID, self.SOS_ID, self.EOS_ID)]
+    def decode(self, ids: list, skip_special_tokens: bool = True) -> str:
+        # FIX: skip UNK_ID in decode so it doesn't pollute the displayed text.
+        # Previously UNK tokens appeared literally as "<unk>" in all visualisations,
+        # making it impossible to tell if the model was producing meaningful output.
+        skip = {self.PAD_ID, self.SOS_ID, self.EOS_ID}
+        if skip_special_tokens:
+            skip.add(self.UNK_ID)
+        tokens = [self.id2token.get(i, self.UNK_TOKEN) for i in ids if i not in skip]
         text = "".join(tokens).replace("</w>", " ").strip()
         return text
 
@@ -179,10 +191,11 @@ class BPETokenizer:
 
     def save(self, path: str):
         data = {
-            "vocab_size": self.vocab_size,
-            "num_merges": self.num_merges,
-            "merges":     self.merges,
-            "token2id":   self.token2id,
+            "vocab_size":   self.vocab_size,
+            "num_merges":   self.num_merges,
+            "config_hash":  self._config_hash,   # FIX: persist hash for stale detection
+            "merges":       self.merges,
+            "token2id":     self.token2id,
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -193,7 +206,9 @@ class BPETokenizer:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         tok = cls(vocab_size=data["vocab_size"], num_merges=data["num_merges"])
-        tok.merges   = [tuple(m) for m in data["merges"]]
-        tok.token2id = data["token2id"]
-        tok.id2token = {int(i): t for t, i in tok.token2id.items()}
+        tok.merges        = [tuple(m) for m in data["merges"]]
+        tok.token2id      = data["token2id"]
+        tok.id2token      = {int(i): t for t, i in tok.token2id.items()}
+        # FIX: restore saved hash so callers can check for staleness
+        tok._config_hash  = data.get("config_hash", "")
         return tok

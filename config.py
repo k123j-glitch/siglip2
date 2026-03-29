@@ -7,8 +7,8 @@ class Config:
     vision_heads  = 12
 
     # ── Text encoder ───────────────────────────────────────────────
-    vocab_size    = 8192   # BPE vocabulary size
-    num_merges    = 4000   # BPE merge operations
+    vocab_size    = 16000  # FIX: was 8192 — larger vocab = fewer UNK tokens, better text representations
+    num_merges    = 8000   # FIX: was 4000 — more merges = words represented as whole tokens not char fragments
     text_dim      = 512
     text_depth    = 6       # FIX: was 24 — text encoder can be shallower than vision
     text_heads    = 8

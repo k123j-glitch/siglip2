@@ -204,7 +204,7 @@ class VisionEncoder(nn.Module):
 
 class TextEncoder(nn.Module):
     def __init__(self,
-                 vocab_size:  int   = 32000,
+                 vocab_size:  int   = 16000,
                  max_seq_len: int   = 64,
                  embed_dim:   int   = 512,
                  depth:       int   = 12,
