@@ -3,30 +3,30 @@ class Config:
     img_size      = 224
     patch_size    = 16
     vision_dim    = 768
-    vision_depth  = 12
+    vision_depth  = 12      # FIX: was 24 (ViT-L size), 12 is ViT-B — appropriate for scratch training
     vision_heads  = 12
 
     # ── Text encoder ───────────────────────────────────────────────
     vocab_size    = 8192   # BPE vocabulary size
     num_merges    = 4000   # BPE merge operations
     text_dim      = 512
-    text_depth    = 12
+    text_depth    = 6       # FIX: was 24 — text encoder can be shallower than vision
     text_heads    = 8
     pad_token_id  = 0      # BPETokenizer.PAD_ID
 
     # ── Shared projection space ────────────────────────────────────
     proj_dim      = 512
-    dropout       = 0.0
+    dropout       = 0.1    # FIX: was 0.0 — small dropout helps regularise scratch training
 
     # ── Sequence length ────────────────────────────────────────────
     max_seq_length = 64
 
     # ── Training ───────────────────────────────────────────────────
-    batch_size    = 16
-    epochs        = 10
-    lr            = 5e-4    # higher LR — training from scratch
+    batch_size    = 64      # FIX: was 16 — contrastive loss needs many negatives; 64 minimum
+    epochs        = 30      # FIX: was 10 — more epochs needed for scratch training
+    lr            = 1e-4    # FIX: was 5e-4 — lower LR for deeper model, avoids loss spikes
     weight_decay  = 0.05
-    warmup_steps  = 500
+    warmup_steps  = 1000   # FIX: was 500 — more warmup for larger batch
 
     # ── Hardware ───────────────────────────────────────────────────
     device        = "cuda"

@@ -14,9 +14,10 @@ Loss (SigLoss)
   (image, text) pair independently with a binary sigmoid loss:
 
       L = -sum( labels * log(sigma(logits)) +
-                (1-labels) * log(1-sigma(logits)) ) / n
+                (1-labels) * log(1-sigma(logits)) ) / n²
 
   where labels[i,j] = +1 if i==j (positive pair) else -1.
+  Division is by n² (total number of pairs), not n.
 """
 
 import math
@@ -280,11 +281,16 @@ class SigLoss(nn.Module):
     """
     SigLIP pairwise sigmoid loss.
     Labels are +1 on the diagonal (positive pairs) and -1 off-diagonal.
+
+    FIX: divide by n² (total number of pairs), not n.
+    The original divided by n which caused the loss to scale with batch size
+    and produced abnormally large gradients.
     """
     def forward(self, logits: torch.Tensor) -> torch.Tensor:
         n = logits.size(0)
         labels = 2 * torch.eye(n, device=logits.device) - 1       # +1 / -1
-        loss = -F.logsigmoid(labels * logits).sum() / n
+        # FIX: divide by n*n not n — we are summing over n² pairs
+        loss = -F.logsigmoid(labels * logits).sum() / (n * n)
         return loss
 
 
@@ -326,8 +332,11 @@ class SigLIP2Model(nn.Module):
             dropout      = getattr(config, "dropout",       0.0),
         )
 
-        # Learnable log-temperature and bias (SigLIP 2 paper §3)
-        self.logit_scale = nn.Parameter(torch.tensor(math.log(10.0)))
+        # FIX: logit_scale init — log(1/0.07) ≈ 2.66 matches CLIP/SigLIP paper init.
+        # The original log(10) ≈ 2.3 (temperature=10) compresses logits early in training.
+        # Also tighten the clamp: max temperature of 100 is fine, but add a minimum
+        # so the scale can't collapse to ~0 and zero out all gradients.
+        self.logit_scale = nn.Parameter(torch.tensor(math.log(1.0 / 0.07)))
         self.logit_bias  = nn.Parameter(torch.zeros(()))
 
         self.loss_fn = SigLoss()
@@ -350,8 +359,9 @@ class SigLIP2Model(nn.Module):
         img_emb  = self.encode_image(pixel_values)
         txt_emb  = self.encode_text(input_ids, attention_mask)
 
-        # Clamp temperature so training stays stable
-        scale   = self.logit_scale.exp().clamp(max=100.0)
+        # FIX: clamp temperature between 1 and 100 — prevents scale collapsing
+        # to near-zero (which zeros all gradients) and exploding above 100.
+        scale   = self.logit_scale.exp().clamp(min=1.0, max=100.0)
         logits  = img_emb @ txt_emb.T * scale + self.logit_bias   # (B, B)
 
         loss = self.loss_fn(logits) if return_loss else None
