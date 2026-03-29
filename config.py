@@ -30,7 +30,12 @@ class Config:
 
     # ── Hardware ───────────────────────────────────────────────────
     device        = "cuda"
-    num_workers   = 0
+    # FIX: was 0 — GPU sat idle waiting for CPU image loading between every batch.
+    # On Windows (WDDM driver, which you have) multiprocessing with spawn requires
+    # the training loop to be protected by  if __name__ == "__main__"  in train.py.
+    # 4 workers is a good starting point for an RTX 5070 Ti; increase to 8 if
+    # CPU is not the bottleneck (watch Task Manager → CPU per-core usage).
+    num_workers   = 4
 
     # ── Paths ──────────────────────────────────────────────────────
     data_csv         = "data/flickr30k_images/captions.txt"

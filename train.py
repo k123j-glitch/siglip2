@@ -234,7 +234,7 @@ def train():
 
     best_val_loss = float("inf")
     global_step   = 0
-    VAL_FREQ      = 500   # ← validate every this many steps
+    VAL_FREQ      = 5000   # ← validate every this many steps
 
     def run_validation(step: int):
         """Full val-set pass + image panels logged at `step`. Saves best ckpt."""
@@ -329,4 +329,8 @@ def train():
 
 
 if __name__ == "__main__":
+    # FIX: On Windows, DataLoader with num_workers > 0 uses 'spawn' to create
+    # worker processes. Without this guard, every worker re-imports train.py and
+    # calls train() again recursively, causing a crash or runaway processes.
+    # This guard is harmless on Linux/Mac (which use 'fork') but required on Windows.
     train()
